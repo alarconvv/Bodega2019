@@ -1,0 +1,187 @@
+#Read files
+
+taxa <- readTaxonData("data/taxa.tsv")
+
+filenames <- v("data/cytb.nex", "data/cmos.nex" )
+
+morpho <- readDiscreteCharacterData("data/ana.nex")
+
+for (i in 1:2){
+   data[i] = readDiscreteCharacterData(filenames[i])
+}
+
+
+data[1].addMissingTaxa( taxa )
+data[2].addMissingTaxa( taxa )
+morpho.addMissingTaxa( taxa )
+
+###Some important Variables
+n_taxa <- taxa.size()
+
+#Initial vector to moves and monitors
+mvi = 0
+mni = 0
+
+#analysis name
+analysis_name = "ET"
+
+
+# how many partitions?
+n_data_subsets <- 2
+
+
+
+# useful variables
+n_species <- data[1].ntaxa()
+n_branches <- 2 * n_species - 3
+
+########################################################################################################
+
+#									Molecular Partitions
+
+########################################################################################################
+
+
+#### Sustituton Model
+for (i in 1:n_data_subsets) {
+  er_prior[i] <- v(1,1,1,1,1,1)
+  er[i] ~ dnDirichlet(er_prior[i])
+  moves[++mvi] = mvBetaSimplex(er[i], alpha=10, tune=true, weight=3)
+}
+
+for (i in 1:n_data_subsets) {
+  pi_prior[i] <- v(1,1,1,1)
+  pi[i] ~ dnDirichlet(pi_prior[i])
+  moves[++mvi] = mvBetaSimplex(pi[i], alpha=10, tune=true, weight=2)
+}
+
+
+for (i in 1:n_data_subsets) {
+  Q[i] := fnGTR(er[i],pi[i])
+}
+
+
+###### Heterogenity
+
+for (i in 1:n_data_subsets) {
+    alpha_prior_mean[i] <- ln(2.0)
+    alpha_prior_sd[i] <- 0.587405
+    alpha[i] ~ dnLognormal( alpha_prior_mean[i], alpha_prior_sd[i] )
+    gamma_rates[i] := fnDiscretizeGamma( alpha[i], alpha[i], 4, false )
+    moves[++mvi] = mvScale(alpha[i],lambda=0.1,weight=2)
+}
+
+
+
+######## Topology
+
+out_group = clade("Sphenodon_punctatus")
+
+# Prior distribution on the tree topology
+topology ~ dnUniformTopology(taxa, outgroup=out_group)
+moves[mvi++] = mvNNI(topology, weight=5.0)
+moves[mvi++] = mvSPR(topology, weight=1.0)
+
+
+######## Branch Lenght
+
+
+# Branch length prior
+for (i in 1:n_branches) {
+    bl[i] ~ dnExponential(10.0)
+    moves[mvi++] = mvScale(bl[i])
+}
+
+TL := sum(bl)
+
+
+########## Creating tree model
+
+psi := treeAssembly(topology, bl)
+
+
+######## PHYLO MODEL
+
+for (i in 1:n_data_subsets) {
+  phyloSeq[i] ~ dnPhyloCTMC(tree=psi, Q=Q[i], siteRates=gamma_rates[i], branchRates=bl[i], type="DNA")
+  phyloSeq[i].clamp(data[i])
+}
+
+
+
+
+########################################################################################################
+
+#									Morphological Data
+
+########################################################################################################
+
+
+#### Sustituton Model
+
+Q_morpho := fnJC(9)
+
+
+###### Heterogenity
+
+alpha_morpho ~ dnExponential( 1.0 )
+rates_morpho := fnDiscretizeGamma( alpha_morpho, alpha_morpho, 4 )
+moves[mvi++] =mvScale(alpha_morpho, lambda=0.01, weight=5.0) 
+moves[mvi++] =mvScale(alpha_morpho, lambda=0.1,  weight=3.0) 
+moves[mvi++] =mvScale(alpha_morpho, lambda=1,    weight=1.0) 
+
+
+########### Topology
+
+topology
+
+
+######## Branch Lenght
+
+n_branches <- 2 * n_species - 2
+clock_morpho ~ dnExponential(1.0)
+
+moves[mvi++] =mvScale(clock_morpho, lambda=0.01, weight=4.0) 
+moves[mvi++] =mvScale(clock_morpho, lambda=0.1,  weight=4.0) 
+moves[mvi++] =mvScale(clock_morpho, lambda=1,    weight=4.0) 
+
+
+######## PHYLO MODEL
+
+phyMorpho ~ dnPhyloCTMC(tree=topology, siteRates=rates_morpho, branchRates=clock_morpho, Q=Q_morpho,type="Standard")
+phyMorpho.clamp(morpho)
+
+
+######Our Model  
+
+
+mymodel = model(er)
+
+###### define monitors
+monitors[mni++] = mnModel(filename="output/Testudines_GTR_Gamma.log",printgen=10, separator = TAB)
+monitors[mni++] = mnFile(filename="output/Testudines_GTR_Gamma.trees",printgen=10, separator = TAB, psi)
+
+### Compute power posterior distributions
+pow_p = powerPosterior(mymodel, moves, monitors, "output/pow_Testudines_GTR_Gamma.out", cats=50, sampleFreq=10) 
+pow_p.burnin(generations=10000,tuningInterval=250)
+pow_p.run(generations=1000)  
+
+### Use stepping-stone sampling to calculate marginal likelihoods
+ss = steppingStoneSampler(file="output/pow_Testudines_GTR_Gamma.out", powerColumnName="power", likelihoodColumnName="likelihood")
+ss.marginal() 
+
+### Use path-sampling to calculate marginal likelihoods
+ps = pathSampler(file="output/pow_Testudines_GTR_Gamma.out", powerColumnName="power", likelihoodColumnName="likelihood")
+ps.marginal() 
+
+# you may want to quit RevBayes now
+q()
+
+
+
+
+
+
+
+
+

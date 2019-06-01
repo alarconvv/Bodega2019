@@ -1,0 +1,268 @@
+###############################################################################
+
+# Evaluatin Length
+
+###############################################################################
+morpho <- readDiscreteCharacterData("data/Habitat.nex")
+
+
+moves = VectorMoves()
+monitors = VectorMonitors()
+
+phylogeny <- readTrees("data/tree.tre")[1]
+
+
+rate_pr := phylogeny.treeHabitat() / 10
+
+
+rate_01 ~ dnExponential(rate_pr)
+rate_10 ~ dnExponential(rate_pr)
+
+
+moves.append( mvScale( rate_01, weight=2 ) )
+moves.append( mvScale( rate_10, weight=2 ) )
+
+
+Q_morpho := fnFreeK( [  rate_01, rate_10], rescale=false )
+
+rf_prior <- [1,1,1]
+rf ~ dnDirichlet( rf_prior )
+moves.append( mvBetaSimplex( rf, weight=2 ) )
+moves.append( mvDirichletSimplex( rf, weight=2 ) )
+
+phyMorpho ~ dnPhyloCTMC(tree=phylogeny, Q=Q_morpho, rootFrequencies=rf, type="Standard")
+
+mymodel = model(phyMorpho)
+
+monitors.append( mnModel(filename="output/unequal.log", printgen=10) )
+
+monitors.append( mnScreen(printgen=100) )
+
+### Compute power posterior distributions
+pow_p = powerPosterior(mymodel, moves, monitors, "output/pow_Habitats.out", cats=50, sampleFreq=10) 
+pow_p.burnin(generations=10000,tuningInterval=25)
+pow_p.run(generations=1000)  
+
+### Use stepping-stone sampling to calculate marginal likelihoods
+ss = steppingStoneSampler(file="output/pow_Habitats.out", powerColumnName="power", likelihoodColumnName="likelihood")
+ss.marginal() 
+
+### Use path-sampling to calculate marginal likelihoods
+ps = pathSampler(file="output/pow_Habitats.out", powerColumnName="power", likelihoodColumnName="likelihood")
+ps.marginal() 
+
+
+###############################################################################
+
+# Maximum body length 
+
+###############################################################################
+
+
+
+morpho <- readDiscreteCharacterData("data/Length.nex")
+
+moves = VectorMoves()
+monitors = VectorMonitors()
+
+phylogeny <- readTrees("data/tree.tre")[1]
+
+
+rate_pr := phylogeny.treeLength() / 10
+
+
+rate_01 ~ dnExponential(rate_pr)
+rate_02 ~ dnExponential(rate_pr)
+rate_10 ~ dnExponential(rate_pr)
+rate_12 ~ dnExponential(rate_pr)
+rate_20 ~ dnExponential(rate_pr)
+rate_21 ~ dnExponential(rate_pr)
+
+
+moves.append( mvScale( rate_01, weight=2 ) )
+moves.append( mvScale( rate_10, weight=2 ) )
+moves.append( mvScale( rate_01 , weight=2 ) )
+moves.append( mvScale( rate_02 , weight=2 ) )
+moves.append( mvScale( rate_10, weight=2 ) )
+moves.append( mvScale( rate_12 , weight=2 ) )
+moves.append( mvScale( rate_20 , weight=2 ) )
+moves.append( mvScale( rate_21 , weight=2 ) )
+
+
+Q_morpho := fnFreeK( [  rate_01, rate_10,rate_01, rate_02,rate_10,rate_12,rate_20,rate_21], rescale=false )
+
+rf_prior <- [1,1,1]
+rf ~ dnDirichlet( rf_prior )
+moves.append( mvBetaSimplex( rf, weight=2 ) )
+moves.append( mvDirichletSimplex( rf, weight=2 ) )
+
+phyMorpho ~ dnPhyloCTMC(tree=phylogeny, Q=Q_morpho, rootFrequencies=rf, type="Standard")
+
+mymodel = model(phyMorpho)
+
+monitors.append( mnModel(filename="output/unequal.log", printgen=10) )
+
+monitors.append( mnScreen(printgen=100) )
+
+### Compute power posterior distributions
+pow_p = powerPosterior(mymodel, moves, monitors, "output/pow_Lengths.out", cats=50, sampleFreq=10) 
+pow_p.burnin(generations=10000,tuningInterval=25)
+pow_p.run(generations=1000)  
+
+### Use stepping-stone sampling to calculate marginal likelihoods
+ss = steppingStoneSampler(file="output/pow_Lengths.out", powerColumnName="power", likelihoodColumnName="likelihood")
+ss.marginal() 
+
+### Use path-sampling to calculate marginal likelihoods
+ps = pathSampler(file="output/pow_Lengths.out", powerColumnName="power", likelihoodColumnName="likelihood")
+ps.marginal() 
+
+
+
+
+###############################################################################
+
+# Humer
+
+###############################################################################
+
+
+
+morpho <- readDiscreteCharacterData("data/Humer_Femur.nex")
+
+moves = VectorMoves()
+monitors = VectorMonitors()
+
+phylogeny <- readTrees("data/tree.tre")[1]
+
+
+rate_pr := phylogeny.treeLength() / 10
+
+
+rate_01 ~ dnExponential(rate_pr)
+rate_02 ~ dnExponential(rate_pr)
+rate_03 ~ dnExponential(rate_pr)
+rate_10 ~ dnExponential(rate_pr)
+rate_12 ~ dnExponential(rate_pr)
+rate_13 ~ dnExponential(rate_pr)
+rate_20 ~ dnExponential(rate_pr)
+rate_21 ~ dnExponential(rate_pr)
+rate_23 ~ dnExponential(rate_pr)
+rate_30 ~ dnExponential(rate_pr)
+rate_31 ~ dnExponential(rate_pr)
+rate_32 ~ dnExponential(rate_pr)
+
+moves.append( mvScale( rate_01, weight=2 ) )
+moves.append( mvScale( rate_10, weight=2 ) )
+moves.append( mvScale( rate_01 , weight=2 ) )
+moves.append( mvScale( rate_02 , weight=2 ) )
+moves.append( mvScale( rate_10, weight=2 ) )
+moves.append( mvScale( rate_12 , weight=2 ) )
+moves.append( mvScale( rate_20 , weight=2 ) )
+moves.append( mvScale( rate_21 , weight=2 ) )
+
+moves.append( mvScale(rate_01 , weight=2 ) )
+moves.append( mvScale(rate_02 , weight=2 ) )
+moves.append( mvScale(rate_03 , weight=2 ) )
+moves.append( mvScale(rate_10 , weight=2 ) )
+moves.append( mvScale(rate_12 , weight=2 ) )
+moves.append( mvScale(rate_13 , weight=2 ) )
+moves.append( mvScale(rate_20 , weight=2 ) )
+moves.append( mvScale(rate_21 , weight=2 ) )
+moves.append( mvScale(rate_23, weight=2 ) )
+moves.append( mvScale(rate_30 , weight=2 ) )
+moves.append( mvScale(rate_31 , weight=2 ) )
+moves.append( mvScale(rate_32 , weight=2 ) )
+
+
+Q_morpho := fnFreeK( [rate_01,rate_02,rate_03,rate_10,rate_12,rate_13,rate_20,rate_21,rate_23,rate_30,rate_31,rate_32], rescale=false )
+
+rf_prior <- [1,1,1]
+rf ~ dnDirichlet( rf_prior )
+moves.append( mvBetaSimplex( rf, weight=2 ) )
+moves.append( mvDirichletSimplex( rf, weight=2 ) )
+
+phyMorpho ~ dnPhyloCTMC(tree=phylogeny, Q=Q_morpho, rootFrequencies=rf, type="Standard")
+
+
+
+mymodel = model(phyMorpho)
+
+monitors.append( mnModel(filename="output/unequal.log", printgen=10) )
+
+monitors.append( mnScreen(printgen=100) )
+
+
+
+
+
+### Compute power posterior distributions
+pow_p = powerPosterior(mymodel, moves, monitors, "output/pow_Humer_Femurs.out", cats=50, sampleFreq=10) 
+pow_p.burnin(generations=10000,tuningInterval=25)
+pow_p.run(generations=1000)  
+
+### Use stepping-stone sampling to calculate marginal likelihoods
+ss = steppingStoneSampler(file="output/pow_Humer_Femurs.out", powerColumnName="power", likelihoodColumnName="likelihood")
+ss.marginal() 
+
+### Use path-sampling to calculate marginal likelihoods
+ps = pathSampler(file="output/pow_Humer_Femurs.out", powerColumnName="power", likelihoodColumnName="likelihood")
+ps.marginal() 
+
+
+###############################################################################
+
+# Flatering Tarsal
+
+###############################################################################
+morpho <- readDiscreteCharacterData("data/Flatterin.nex")
+
+
+moves = VectorMoves()
+monitors = VectorMonitors()
+
+phylogeny <- readTrees("data/tree.tre")[1]
+
+
+rate_pr := phylogeny.treeHabitat() / 10
+
+
+rate_01 ~ dnExponential(rate_pr)
+rate_10 ~ dnExponential(rate_pr)
+
+
+moves.append( mvScale( rate_01, weight=2 ) )
+moves.append( mvScale( rate_10, weight=2 ) )
+
+
+Q_morpho := fnFreeK( [  rate_01, rate_10], rescale=false )
+
+rf_prior <- [1,1,1]
+rf ~ dnDirichlet( rf_prior )
+moves.append( mvBetaSimplex( rf, weight=2 ) )
+moves.append( mvDirichletSimplex( rf, weight=2 ) )
+
+phyMorpho ~ dnPhyloCTMC(tree=phylogeny, Q=Q_morpho, rootFrequencies=rf, type="Standard")
+
+
+
+mymodel = model(phyMorpho)
+
+monitors.append( mnModel(filename="output/unequal.log", printgen=10) )
+
+monitors.append( mnScreen(printgen=100) )
+
+
+
+### Compute power posterior distributions
+pow_p = powerPosterior(mymodel, moves, monitors, "output/pow_flattering.out", cats=50, sampleFreq=10) 
+pow_p.burnin(generations=10000,tuningInterval=25)
+pow_p.run(generations=1000)  
+
+### Use stepping-stone sampling to calculate marginal likelihoods
+ss = steppingStoneSampler(file="output/pow_flattering.out", powerColumnName="power", likelihoodColumnName="likelihood")
+ss.marginal() 
+
+### Use path-sampling to calculate marginal likelihoods
+ps = pathSampler(file="output/pow_flattering.out", powerColumnName="power", likelihoodColumnName="likelihood")
+ps.marginal() 

@@ -1,0 +1,182 @@
+################################################################################
+#
+# RevBayes Example: Inferring ancestral states and rates of morphological evolution
+# 
+# This file: Runs the full MCMC on an irreversible model.
+#
+# authors:  Sebastian Hýhna, Will Freyman, April M. Wright, Michael J. Landis
+#
+################################################################################
+
+analysis_name = "nectar_yellow"
+
+#######################
+# Reading in the Data #
+#######################
+
+# Import the morphological character matrix #
+# this file contains only the taxa for which morphological characters are available #
+morpho <- readDiscreteCharacterData("data/correlation.nex")
+
+# Create some vector for the moves and monitors of this analysis
+moves    = VectorMoves()
+monitors = VectorMonitors()
+
+
+
+##############
+# Tree model #
+##############
+
+# Here we use a fixed tree topology of mammals on a family level sampling
+# Note that the readTrees function always returns a vector of trees, 
+# so we simple take the first tree
+phylogeny <- readTrees("data/tree.tre")[1]
+
+
+#########################
+# Set up the rate model #
+#########################
+
+# we assume every rate i <-> j to be independent and exponentially distributed
+rate_pr := phylogeny.treeLength() / 10
+rate
+
+rate0101~ dnExp(rate_pr)
+rate0102~ dnExp(rate_pr)
+rate0110~ dnExp(rate_pr)
+rate0112~ dnExp(rate_pr)
+rate0120~ dnExp(rate_pr)
+rate0121~ dnExp(rate_pr)
+rate1001~ dnExp(rate_pr)
+rate1002~ dnExp(rate_pr)
+rate1010~ dnExp(rate_pr)
+rate1020~ dnExp(rate_pr)
+rate1021~ dnExp(rate_pr)
+
+
+
+moves.append( mvScale( rate0101, weight=2 ) )
+moves.append( mvScale( rate0102, weight=2 ) )
+moves.append( mvScale( rate0110, weight=2 ) )
+moves.append( mvScale( rate0120, weight=2 ) )
+moves.append( mvScale( rate0121, weight=2 ) )
+moves.append( mvScale( rate1001, weight=2 ) )
+moves.append( mvScale( rate1002, weight=2 ) )
+moves.append( mvScale( rate1010, weight=2 ) )
+moves.append( mvScale( rate1020, weight=2 ) )
+moves.append( mvScale( rate1021, weight=2 ) )
+
+for (i in 1:12) {
+    for (j in 1:12) {
+        rates[i][j] <- 0.0
+    }
+}
+
+rates[1][2] := rate_0010 # 00->10
+rates[1][3] := rate_0001 # 00->01
+rates[2][1] := rate_1000 # 10->00
+rates[2][4] := rate_1011 # 10->11
+rates[3][1] := rate_0100 # 01->00
+rates[3][4] := rate_0111 # 01->11
+rates[4][2] := rate_1110 # 11->10
+rates[4][3] := rate_1101 # 11->01
+
+
+Q_morpho := fnFreeK(rates, rescale = false)
+Q_morpho
+
+#Q_morpho := fnFreeK( [ rate_12, rate_13, rate_21, rate_23, rate_31, rate_32 ], rescale=false )
+
+##########################
+# Set up the rate matrix #
+##########################
+
+#rate_pr := phylogeny.treeLength() / 10
+
+#r ~ dnDirichlet( [1,1,1,1,1,1,1,1] )
+#r
+
+
+#moves.append( mvBetaSimplex(r, weight=3.0) )
+#moves.append( mvDirichletSimplex(r, weight=1.5) )
+
+
+# make Q matrix 
+
+#for (i in 1:4) {
+#    for (j in 1:4) {
+#        rates[i][j] <- 0.0
+#    }
+#}
+
+#rates[1][2] := r[1] # 00->10
+#rates[1][3] := r[2] # 00->01
+#rates[2][1] := r[3] # 10->00
+#rates[2][4] := r[4] # 10->11
+#rates[3][1] := r[5] # 01->00
+#rates[3][4] := r[6] # 01->11
+#rates[4][2] := r[7] # 11->10
+#rates[4][3] := r[8] # 11->01
+
+#Q_morpho := fnFreeK(rates, rescale = false)
+#Q_morpho
+
+#####################################
+# Set up the root state frequencies #
+#####################################
+
+rf_prior <- [1,1,1,1]
+rf ~ dnDirichlet( rf_prior )
+moves.append( mvBetaSimplex( rf, weight=2 ) )
+moves.append( mvDirichletSimplex( rf, weight=2 ) )
+
+
+
+###################
+# Set up the CTMC #
+###################
+
+# Combine all of our elements into a CTMC.
+
+phyMorpho ~ dnPhyloCTMC(tree=phylogeny, Q=Q_morpho, rootFrequencies=rf, type="Standard")
+phyMorpho.clamp(morpho)
+
+
+
+########
+# MCMC #
+########
+
+# initialize the model object #
+mymodel = model(phylogeny)
+# Create a vector of monitors #
+# 1. for the full model #
+monitors.append( mnModel(filename="output_" + analysis_name +"/freeK.log", printgen=1) )
+# 2. and a few select parameters to be printed to the screen #
+monitors.append( mnScreen(printgen=100) )
+# 3. add an ancestral state monitor
+monitors.append( mnJointConditionalAncestralState(tree=phylogeny,
+                                                  ctmc=phyMorpho,
+                                                  filename="output_" + analysis_name +"/freeK.states.txt",
+                                                  type="Standard",
+                                                  printgen=1,
+                                                  withTips=true,
+                                                  withStartStates=false) )
+
+# Initialize the MCMC object #
+mymcmc = mcmc(mymodel, monitors, moves, nruns=2, combine="mixed")
+
+# Run the MCMC #
+mymcmc.run(generations=10000, tuningInterval=200)
+
+# check the performance of the MCMC/moves
+mymcmc.operatorSummary()
+
+
+# Read in the tree trace and construct the ancestral states (ASE) #
+anc_states = readAncestralStateTrace("output_" + analysis_name +"/freeK.states.txt")
+anc_tree = ancestralStateTree(tree=phylogeny, ancestral_state_trace_vector=anc_states, include_start_states=false, file="output_" + analysis_name +"/ase_freeK.tree", burnin=0.25, summary_statistic="MAP", site=1)
+
+# Quit RevBayes #
+q()
